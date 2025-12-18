@@ -29,6 +29,8 @@ const Icon ={
 	name: 'Icon',
 	template: `<div :class="[
 		this.disabledData ? 'web-activity-disable' : '',
+		this.searchMatchData === true ? 'activity-search-match' : '',
+		this.searchMatchData === false ? 'activity-search-no-match' : '',
 		disableHoverEffect ? '' : 'icon',
 		].join(' ')" ref="icon" v-html="gensvg" :id="this.idData"></div>`,
 	props: {
@@ -54,6 +56,7 @@ const Icon ={
 			xData: this.x ? this.x: 0,
 			yData: this.y ? this.y: 0,
 			disabledData: this.disabled ? this.disabled: false,
+			searchMatchData: null,
 			_originalColor: { fill: null, stroke: null},
 			_element: null,
 			fallback: false

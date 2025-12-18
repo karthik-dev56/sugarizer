@@ -209,12 +209,21 @@ const HomeScreen = {
 		},
 
 		filterSearch(filter) {
+			const hasSearch = filter && filter.trim().length > 0;
 			for (let i = 0; i < this.activities.length; i++) {
 				let ref = this.$refs["activity" + this.activities[i].id];
 				if (!ref || ref.length == 0) {
 					continue;
 				}
-				ref[0].disabledData = !this.activities[i].name.toUpperCase().includes(filter.toUpperCase());
+				const isMatch = this.activities[i].name.toUpperCase().includes(filter.toUpperCase());
+				ref[0].disabledData = !isMatch;
+				
+				// Apply search highlighting classes only when search is active
+				if (hasSearch) {
+					ref[0].searchMatchData = isMatch;
+				} else {
+					ref[0].searchMatchData = null;
+				}
 			}
 		},
 

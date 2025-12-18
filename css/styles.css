@@ -1096,6 +1096,19 @@ a {
 	opacity: 0.5;
 }
 
+/* Search highlighting classes */
+.activity-search-match {
+	opacity: 1 !important;
+	filter: saturate(1.3) brightness(1.1);
+	transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.activity-search-no-match {
+	opacity: 0.25 !important;
+	filter: saturate(0.5) brightness(0.7);
+	transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
 .sync-gear {
 	animation-name: sync-frame;
 	animation-duration: 2s;
