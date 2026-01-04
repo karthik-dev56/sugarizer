@@ -696,7 +696,7 @@ const Journal = {
 		async confirmOperation() {
 			this.showWarning = false;
 			this.checkboxSelected = 0;
-			for (entry of this.processedJournal) {
+			for (const entry of this.processedJournal) {
 				if (
 					entry.isChecked &&
 					this.currentOperation &&
