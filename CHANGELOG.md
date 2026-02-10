@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Delete key deleted wrong character in Calculator #1935
 - Fototoon don't handle window resize #559
 - Bug in Flip Activity when resize an ended game #1956
+- Inconsistent degree trigonometric evaluation in Calculate activity #1964
 
 ## [1.9.0] - 2025-03-25
 ### Added
