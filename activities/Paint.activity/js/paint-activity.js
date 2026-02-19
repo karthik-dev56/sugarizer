@@ -65,8 +65,8 @@ function canvasResize() {
   paper.view.viewSize = new paper.Size(newWidth, newHeight);
   PaintApp.prevScreenHeight = parseInt(window.innerHeight) - 55;
   PaintApp.prevScreenWidth = parseInt(window.innerWidth);
-  canvas.width = newWidth;
-  canvas.height = newHeight;
+  canvas.style.width = newWidth+"px";
+  canvas.style.height = newHeight+"px";
   canvas.getContext('2d').drawImage(worldCanvas,0,0,newWidth,newHeight,0,0,newWidth,newHeight);
 }
 window.addEventListener("resize", canvasResize);
