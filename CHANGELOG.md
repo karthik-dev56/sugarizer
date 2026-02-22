@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Stickman activity
 - Add "Global Time" feature to Clock activity with timezone selection #1825
 - Add Water mode in Physics activity #1863
-- Add pen tool for freehand drawing in Physics activity #1858
+- Add pen tool for freehand drawing in Physics activity
 
 ### Changed
 - Rewrite of Sugarizer Core using Vue.js
