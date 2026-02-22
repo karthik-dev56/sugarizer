@@ -50,6 +50,11 @@ body {
     z-index: 2;
 }
 
+#main-toolbar #pen-button {
+  background-image: url(../icons/pen.svg);
+  z-index: 3;
+}
+
 /* Left water */
 #viewport.water-mode[data-water-region="left"]::after {
     content: "";
