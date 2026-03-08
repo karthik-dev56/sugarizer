@@ -2,22 +2,6 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
 
     'use strict';
 
-    // This is a helper module that allows to persist key/value data
-    // using the standard localStorage object.
-    //
-    // Usage:
-    // ------
-    //
-    // // 1. Setup:
-    //
-    // dictstore.init(onReadyCallback);
-    //
-    // // 2. Use localStorage directly, and then call save():
-    //
-    // var value = localStorage['key'];
-    // localStorage['key'] = newValue;
-    // dictstore.save(onSavedCallback);
-    //
     var dictstore = {};
 
     dictstore.init = function (callback) {
