@@ -1,8 +1,4 @@
-/* ============================================
-   Circuit Builder Activity - Sugarizer Style
-   ============================================ */
 
-/* Activity icon in toolbar */
 #main-toolbar #activity-button {
   background-image: url(../activity/activity-icon.svg);
 }
@@ -45,7 +41,6 @@
   z-index: 5;
 }
 
-/* Level label in toolbar */
 .level-text {
   color: #FFFFFF;
   font-family: 'Helvetica', 'Arial', sans-serif;
@@ -60,7 +55,6 @@
   user-select: none;
 }
 
-/* Separator */
 .seprator-line {
   display: inline-block;
   width: 2px;
@@ -70,7 +64,6 @@
   margin: 7px 5px;
 }
 
-/* Body and Canvas */
 body {
   margin: 0;
   padding: 0;
@@ -101,7 +94,6 @@ body {
   touch-action: none;
 }
 
-/* Level info bar */
 #level-info {
   position: absolute;
   top: 10px;
@@ -131,7 +123,6 @@ body {
   color: #FFD54F;
 }
 
-/* Message overlay (success/fail) */
 #message-overlay {
   position: absolute;
   top: 0;
@@ -211,7 +202,6 @@ body {
   background: #1976D2;
 }
 
-/* Palette styling for Sugarizer consistency */
 .palette {
   color: black;
 }
