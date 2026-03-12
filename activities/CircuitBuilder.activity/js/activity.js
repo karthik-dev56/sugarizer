@@ -1,37 +1,42 @@
 define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env) {
 
-    // Manipulate the DOM only when it is ready.
     requirejs(['domReady!'], function (doc) {
 
-        // Initialize the activity.
         activity.setup();
-
-        
 
         var canvas = document.getElementById('circuit-canvas');
         var ctx = canvas.getContext('2d');
-        var levelLabel = document.getElementById('level-label');
-        var levelDescription = document.getElementById('level-description');
-        var wireCountElem = document.getElementById('wire-count');
-        var messageOverlay = document.getElementById('message-overlay');
-        var messageText = document.getElementById('message-text');
-        var messageIcon = document.getElementById('message-icon');
-        var messageBtn = document.getElementById('message-btn');
 
-        // State
-        var currentLevel = 0;
-        var wires = [];
-        var selectedTerminalId = null;  
+        // ===== STATE =====
         var components = [];
+        var wires = [];
+        var switchStates = {};
+        var nextId = 1;
+        var currentTool = 'select';
         var terminals = [];
         var animFrame = null;
-        var glowingBulbs = [];
+
+        // Interaction state
+        var hoverTerminal = null;
+        var mousePos = { x: 0, y: 0 };
         var sparkParticles = [];
-        var switchStates = {};
 
-        console.log('[CircuitBuilder] Activity loaded');
+        // Component dragging
+        var isDraggingComponent = false;
+        var dragComp = null;
+        var dragOffset = { x: 0, y: 0 };
+        var dragStartPos = { x: 0, y: 0 };
+        var dragMoved = false;
 
-       
+        // Wire drawing
+        var isDrawingWire = false;
+        var wireFromId = null;
+        var wireToPos = null;
+        var selectedTerminalId = null;
+
+        console.log('[CircuitBuilder] Sandbox mode loaded');
+
+        // ===== COLORS =====
         var COLORS = {
             background: '#b8956a',
             wire: '#333333',
@@ -44,7 +49,6 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             batteryPlus: '#FFFFFF',
             bulbGlass: '#E8F5E9',
             bulbGlassOn: '#FFFF88',
-            bulbGlowOn: 'rgba(255,255,100,0.35)',
             bulbFilament: '#888888',
             bulbFilamentOn: '#FF8800',
             bulbBase: '#AAAAAA',
@@ -53,86 +57,74 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             switchKnob: '#FF5722',
             switchKnobOn: '#2E7D32',
             text: '#FFFFFF',
-            gridDot: 'rgba(0,0,0,0.08)'
+            gridDot: 'rgba(0,0,0,0.08)',
+            deleteHighlight: 'rgba(244,67,54,0.25)'
         };
 
-        // Component types
         var COMP = {
             BATTERY: 'battery',
             BULB: 'bulb',
             SWITCH: 'switch'
         };
 
-   
-        var levels = [
-            {
-                // Level 1: Simple battery + 1 bulb
-                description: 'Connect the battery to the light bulb',
-                maxWires: -1, // unlimited
-                components: [
-                    { type: COMP.BATTERY, x: 0.22, y: 0.45, id: 'bat1' },
-                    { type: COMP.BULB, x: 0.65, y: 0.40, id: 'bulb1' }
-                ],
-
-                winCondition: function(graph) {
-                    return checkClosedCircuit(graph, ['bat1'], ['bulb1'], []);
-                }
-            },
-            {
-             
-                description: 'Light up two bulbs in series',
-                maxWires: -1,
-                components: [
-                    { type: COMP.BATTERY, x: 0.15, y: 0.45, id: 'bat1' },
-                    { type: COMP.BULB, x: 0.45, y: 0.35, id: 'bulb1' },
-                    { type: COMP.BULB, x: 0.75, y: 0.50, id: 'bulb2' }
-                ],
-                winCondition: function(graph) {
-                    return checkClosedCircuit(graph, ['bat1'], ['bulb1', 'bulb2'], []);
-                }
-            },
-            {
-                // Level 3: Battery + switch + bulb
-                description: 'Use the switch to control the bulb',
-                maxWires: -1,
-                components: [
-                    { type: COMP.BATTERY, x: 0.18, y: 0.45, id: 'bat1' },
-                    { type: COMP.SWITCH, x: 0.45, y: 0.45, id: 'sw1' },
-                    { type: COMP.BULB, x: 0.72, y: 0.40, id: 'bulb1' }
-                ],
-                winCondition: function(graph) {
-                    return checkClosedCircuit(graph, ['bat1'], ['bulb1'], ['sw1']);
-                }
-            },
-            {
-                // Level 4: Battery + 2 bulbs with limited wires
-                description: 'Light up two bulbs with only 4 wires',
-                maxWires: 4,
-                components: [
-                    { type: COMP.BATTERY, x: 0.15, y: 0.45, id: 'bat1' },
-                    { type: COMP.BULB, x: 0.45, y: 0.30, id: 'bulb1' },
-                    { type: COMP.BULB, x: 0.75, y: 0.55, id: 'bulb2' }
-                ],
-                winCondition: function(graph) {
-                    return checkClosedCircuit(graph, ['bat1'], ['bulb1', 'bulb2'], []);
-                }
-            },
-            {
-                // Level 5: Parallel circuit - battery + 2 bulbs in parallel
-                description: 'Build a parallel circuit for two bulbs',
-                maxWires: -1,
-                components: [
-                    { type: COMP.BATTERY, x: 0.15, y: 0.45, id: 'bat1' },
-                    { type: COMP.BULB, x: 0.60, y: 0.25, id: 'bulb1' },
-                    { type: COMP.BULB, x: 0.60, y: 0.65, id: 'bulb2' }
-                ],
-                winCondition: function(graph) {
-                    return checkParallelCircuit(graph, 'bat1', ['bulb1', 'bulb2']);
-                }
+        // ===== COMPONENT MANAGEMENT =====
+        function addComponent(type, fracX, fracY) {
+            var id = 'comp_' + nextId++;
+            var comp = { id: id, type: type, x: fracX, y: fracY };
+            components.push(comp);
+            if (type === COMP.SWITCH) {
+                switchStates[id] = false;
             }
-        ];
+            recalcTerminals();
+            addSparks(fracX * canvas.width, fracY * canvas.height);
+            return comp;
+        }
 
-        
+        function removeComponent(compId) {
+            wires = wires.filter(function (w) {
+                return w.from.indexOf(compId + '_') !== 0 && w.to.indexOf(compId + '_') !== 0;
+            });
+            components = components.filter(function (c) { return c.id !== compId; });
+            delete switchStates[compId];
+            recalcTerminals();
+        }
+
+        function removeWireAt(x, y) {
+            var closestIdx = -1;
+            var closestDist = 25;
+            wires.forEach(function (w, idx) {
+                var fromT = findTerminal(w.from);
+                var toT = findTerminal(w.to);
+                if (fromT && toT) {
+                    var d = distToSegment({ x: x, y: y }, fromT, toT);
+                    if (d < closestDist) {
+                        closestDist = d;
+                        closestIdx = idx;
+                    }
+                }
+            });
+            if (closestIdx >= 0) {
+                wires.splice(closestIdx, 1);
+                return true;
+            }
+            return false;
+        }
+
+        function clearAll() {
+            components = [];
+            wires = [];
+            switchStates = {};
+            terminals = [];
+            sparkParticles = [];
+            selectedTerminalId = null;
+            isDraggingComponent = false;
+            isDrawingWire = false;
+            wireFromId = null;
+            wireToPos = null;
+            dragComp = null;
+        }
+
+        // ===== TERMINAL FUNCTIONS =====
         function getTerminalsForComponent(comp, cw, ch) {
             var cx = comp.x * cw;
             var cy = comp.y * ch;
@@ -140,11 +132,9 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             var ts = [];
 
             if (comp.type === COMP.BATTERY) {
-                // Top terminal (+) and bottom terminal (-)
                 ts.push({ id: comp.id + '_pos', compId: comp.id, type: 'pos', x: cx, y: cy - size * 1.6, compType: comp.type });
                 ts.push({ id: comp.id + '_neg', compId: comp.id, type: 'neg', x: cx, y: cy + size * 1.6, compType: comp.type });
             } else if (comp.type === COMP.BULB) {
-                // Left terminal and right terminal
                 ts.push({ id: comp.id + '_a', compId: comp.id, type: 'a', x: cx - size * 1.3, y: cy + size * 0.6, compType: comp.type });
                 ts.push({ id: comp.id + '_b', compId: comp.id, type: 'b', x: cx + size * 1.3, y: cy + size * 0.6, compType: comp.type });
             } else if (comp.type === COMP.SWITCH) {
@@ -154,35 +144,79 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             return ts;
         }
 
+        function recalcTerminals() {
+            terminals = [];
+            components.forEach(function (comp) {
+                var ts = getTerminalsForComponent(comp, canvas.width, canvas.height);
+                terminals = terminals.concat(ts);
+            });
+        }
 
+        function findTerminal(id) {
+            for (var i = 0; i < terminals.length; i++) {
+                if (terminals[i].id === id) return terminals[i];
+            }
+            return null;
+        }
+
+        function findTerminalAt(x, y) {
+            var radius = Math.min(canvas.width, canvas.height) * 0.045;
+            var best = null;
+            var bestDist = radius;
+            for (var i = 0; i < terminals.length; i++) {
+                var dx = terminals[i].x - x;
+                var dy = terminals[i].y - y;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = terminals[i];
+                }
+            }
+            return best;
+        }
+
+        function findComponentAt(x, y) {
+            var size = Math.min(canvas.width, canvas.height) * 0.055;
+            for (var i = components.length - 1; i >= 0; i--) {
+                var comp = components[i];
+                var cx = comp.x * canvas.width;
+                var cy = comp.y * canvas.height;
+                var dx = cx - x;
+                var dy = cy - y;
+                if (Math.sqrt(dx * dx + dy * dy) < size * 2) {
+                    return comp;
+                }
+            }
+            return null;
+        }
+
+        // ===== CIRCUIT GRAPH =====
         function buildGraph() {
-            
             var adj = {};
-            terminals.forEach(function(t) { adj[t.id] = []; });
+            terminals.forEach(function (t) { adj[t.id] = []; });
 
-            components.forEach(function(comp) {
-                var compTerminals = terminals.filter(function(t) { return t.compId === comp.id; });
+            components.forEach(function (comp) {
+                var compTerminals = terminals.filter(function (t) { return t.compId === comp.id; });
                 if (compTerminals.length === 2) {
                     var a = compTerminals[0].id;
                     var b = compTerminals[1].id;
-                    if (comp.type === COMP.BATTERY) {
-         
-                    } else if (comp.type === COMP.SWITCH) {
+                    if (comp.type === COMP.SWITCH) {
                         if (switchStates[comp.id]) {
                             adj[a].push(b);
                             adj[b].push(a);
                         }
-                    } else {
+                    } else if (comp.type !== COMP.BATTERY) {
                         adj[a].push(b);
                         adj[b].push(a);
                     }
                 }
             });
 
-            // Wire connections
-            wires.forEach(function(w) {
-                adj[w.from].push(w.to);
-                adj[w.to].push(w.from);
+            wires.forEach(function (w) {
+                if (adj[w.from] && adj[w.to]) {
+                    adj[w.from].push(w.to);
+                    adj[w.to].push(w.from);
+                }
             });
 
             return adj;
@@ -194,7 +228,7 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             visited[start] = true;
             while (queue.length > 0) {
                 var node = queue.shift();
-                (adj[node] || []).forEach(function(neighbor) {
+                (adj[node] || []).forEach(function (neighbor) {
                     if (!visited[neighbor]) {
                         visited[neighbor] = true;
                         queue.push(neighbor);
@@ -204,58 +238,31 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             return visited;
         }
 
-        function checkClosedCircuit(graph, batteryIds, bulbIds, switchIds) {
-            var adj = graph;
-         
-            for (var b = 0; b < batteryIds.length; b++) {
-                var posId = batteryIds[b] + '_pos';
-                var negId = batteryIds[b] + '_neg';
-                var reachable = bfsReachable(adj, posId);
-                if (!reachable[negId]) return false;
-            }
-
-            for (var i = 0; i < bulbIds.length; i++) {
-                var aId = bulbIds[i] + '_a';
-                var bId = bulbIds[i] + '_b';
-                var reach = bfsReachable(adj, batteryIds[0] + '_pos');
-                if (!reach[aId] || !reach[bId]) return false;
-            }
-
-            return true;
-        }
-
-        function checkParallelCircuit(graph, batteryId, bulbIds) {
-            var adj = graph;
-            var posId = batteryId + '_pos';
-            var negId = batteryId + '_neg';
-            var reach = bfsReachable(adj, posId);
-            if (!reach[negId]) return false;
-
-            for (var i = 0; i < bulbIds.length; i++) {
-                var aId = bulbIds[i] + '_a';
-                var bId = bulbIds[i] + '_b';
-                if (!reach[aId] || !reach[bId]) return false;
-            }
-            return true;
-        }
-
         function getBulbStates(adj) {
             var states = {};
-            components.forEach(function(comp) {
+            var batteries = components.filter(function (c) { return c.type === COMP.BATTERY; });
+
+            components.forEach(function (comp) {
                 if (comp.type !== COMP.BULB) return;
                 var aId = comp.id + '_a';
                 var bId = comp.id + '_b';
-                var batComp = components.find(function(c) { return c.type === COMP.BATTERY; });
-                if (!batComp) { states[comp.id] = false; return; }
-                var posId = batComp.id + '_pos';
-                var negId = batComp.id + '_neg';
-                var reachFromPos = bfsReachable(adj, posId);
-                states[comp.id] = !!(reachFromPos[aId] && reachFromPos[bId] && reachFromPos[negId]);
+                states[comp.id] = false;
+
+                for (var b = 0; b < batteries.length; b++) {
+                    var bat = batteries[b];
+                    var posId = bat.id + '_pos';
+                    var negId = bat.id + '_neg';
+                    var reachFromPos = bfsReachable(adj, posId);
+                    if (reachFromPos[aId] && reachFromPos[bId] && reachFromPos[negId]) {
+                        states[comp.id] = true;
+                        break;
+                    }
+                }
             });
             return states;
         }
 
-        // DRAWING FUNCTIONS
+        // ===== DRAWING FUNCTIONS =====
         function resizeCanvas() {
             var rect = canvas.parentElement.getBoundingClientRect();
             var w = rect.width || window.innerWidth;
@@ -281,13 +288,25 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             }
         }
 
+        function drawHint() {
+            if (components.length > 0) return;
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.font = '22px Helvetica, Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Click a component button to start building!', canvas.width / 2, canvas.height / 2 - 15);
+            ctx.font = '16px Helvetica, Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillText('Add batteries, bulbs, and switches, then wire them together', canvas.width / 2, canvas.height / 2 + 20);
+        }
+
         function drawBattery(comp, size) {
             var cx = comp.x * canvas.width;
             var cy = comp.y * canvas.height;
             var w = size * 1.4;
             var h = size * 2.2;
 
-            // Battery cap (top positive terminal)
+            // Battery cap
             ctx.fillStyle = '#888888';
             var capW = w * 0.4;
             var capH = h * 0.12;
@@ -295,12 +314,13 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             drawRoundRect(cx - capW / 2, cy - h / 2 - capH, capW, capH, 2);
             ctx.fill();
 
-            // Battery body
+            // Battery body top
             ctx.fillStyle = COLORS.batteryTop;
             ctx.beginPath();
             drawRoundRect(cx - w / 2, cy - h / 2, w, h * 0.4, [4, 4, 0, 0]);
             ctx.fill();
 
+            // Battery body bottom
             ctx.fillStyle = COLORS.batteryBody;
             ctx.beginPath();
             drawRoundRect(cx - w / 2, cy - h / 2 + h * 0.4, w, h * 0.6, [0, 0, 4, 4]);
@@ -315,7 +335,7 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
 
             // Minus sign
             ctx.fillStyle = '#AAAAAA';
-            ctx.fillText('−', cx, cy + h * 0.22);
+            ctx.fillText('\u2212', cx, cy + h * 0.22);
         }
 
         function drawBulb(comp, size, isOn) {
@@ -323,7 +343,7 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             var cy = comp.y * canvas.height;
             var radius = size * 0.9;
 
-            // Glow 
+            // Glow
             if (isOn) {
                 var grad = ctx.createRadialGradient(cx, cy - size * 0.3, 0, cx, cy - size * 0.3, radius * 2.5);
                 grad.addColorStop(0, 'rgba(255,255,150,0.5)');
@@ -335,7 +355,7 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
                 ctx.fill();
             }
 
-            // Bulb glass
+            // Glass
             ctx.fillStyle = isOn ? COLORS.bulbGlassOn : COLORS.bulbGlass;
             ctx.strokeStyle = '#888888';
             ctx.lineWidth = 2;
@@ -358,7 +378,7 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             var baseH = radius * 0.45;
             ctx.fillStyle = COLORS.bulbBase;
             ctx.strokeStyle = '#777';
-            ctx.lineWidth = 1.5;  
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
             drawRoundRect(cx - baseW / 2, cy + radius * 0.5, baseW, baseH, 3);
             ctx.fill();
@@ -417,16 +437,16 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
 
         function drawTerminal(t, isHover, isActive) {
             var radius = Math.min(canvas.width, canvas.height) * 0.022;
-            
-            // Outer glow ring to show it's interactive
+
+            // Hover glow ring
             if (isHover) {
                 ctx.fillStyle = 'rgba(255,152,0,0.3)';
                 ctx.beginPath();
                 ctx.arc(t.x, t.y, radius * 1.8, 0, Math.PI * 2);
                 ctx.fill();
             }
-            
-            // Pulsing ring around all terminals
+
+            // Pulsing ring
             var pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.003);
             ctx.strokeStyle = 'rgba(255,255,255,' + (0.2 + pulse * 0.3) + ')';
             ctx.lineWidth = 2;
@@ -434,7 +454,7 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             ctx.arc(t.x, t.y, radius * 1.3, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Main terminal circle
+            // Main circle
             ctx.fillStyle = isActive ? COLORS.terminalActive : (isHover ? COLORS.terminalHover : COLORS.terminal);
             ctx.beginPath();
             ctx.arc(t.x, t.y, radius, 0, Math.PI * 2);
@@ -457,13 +477,10 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             ctx.lineWidth = isActive ? 4 : 3;
             ctx.lineCap = 'round';
 
-            // Draw as a nice curved wire
             var dx = toT.x - fromT.x;
             var dy = toT.y - fromT.y;
             var mx = (fromT.x + toT.x) / 2;
             var my = (fromT.y + toT.y) / 2;
-
-            // Slight curve offset
             var perpX = -dy * 0.15;
             var perpY = dx * 0.15;
 
@@ -487,7 +504,39 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             ctx.lineCap = 'butt';
         }
 
-        // Spark particles for wire connections
+        function drawGhostComponent(type, px, py, size) {
+            if (px <= 0 && py <= 0) return;
+            ctx.globalAlpha = 0.35;
+            var ghost = { x: px / canvas.width, y: py / canvas.height, id: '_ghost' };
+            if (type === COMP.BATTERY) drawBattery(ghost, size);
+            else if (type === COMP.BULB) drawBulb(ghost, size, false);
+            else if (type === COMP.SWITCH) drawSwitch(ghost, size);
+            ctx.globalAlpha = 1.0;
+        }
+
+        function drawDeleteHighlight(comp, size) {
+            var cx = comp.x * canvas.width;
+            var cy = comp.y * canvas.height;
+            ctx.fillStyle = COLORS.deleteHighlight;
+            ctx.beginPath();
+            ctx.arc(cx, cy, size * 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // X mark
+            ctx.strokeStyle = 'rgba(244,67,54,0.6)';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            var s = size * 0.8;
+            ctx.beginPath();
+            ctx.moveTo(cx - s, cy - s);
+            ctx.lineTo(cx + s, cy + s);
+            ctx.moveTo(cx + s, cy - s);
+            ctx.lineTo(cx - s, cy + s);
+            ctx.stroke();
+            ctx.lineCap = 'butt';
+        }
+
+        // ===== SPARKS =====
         function addSparks(x, y) {
             for (var i = 0; i < 8; i++) {
                 var angle = Math.random() * Math.PI * 2;
@@ -504,7 +553,7 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
 
         function updateAndDrawSparks() {
             var alive = [];
-            sparkParticles.forEach(function(p) {
+            sparkParticles.forEach(function (p) {
                 p.x += p.vx;
                 p.y += p.vy;
                 p.life -= 0.03;
@@ -521,142 +570,33 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             sparkParticles = alive;
         }
 
-        // MAIN RENDER LOOP
-        var hoverTerminal = null;
-        var connectedTerminals = {};
-
-        function render() {
-            resizeCanvas();
-
-            recalcTerminals();
-
-            drawBackground();
-
-            var size = Math.min(canvas.width, canvas.height) * 0.055;
-
-            var adj = buildGraph();
-            var bulbStates = getBulbStates(adj);
-
-            // Build set of connected terminals
-            connectedTerminals = {};
-            wires.forEach(function(w) {
-                connectedTerminals[w.from] = true;
-                connectedTerminals[w.to] = true;
-            });
-
-            // Draw wires
-            wires.forEach(function(w) {
-                var fromT = findTerminal(w.from);
-                var toT = findTerminal(w.to);
-                if (fromT && toT) {
-                    var bat = components.find(function(c) { return c.type === COMP.BATTERY; });
-                    var isActive = false;
-                    if (bat) {
-                        var reach = bfsReachable(adj, bat.id + '_pos');
-                        isActive = reach[bat.id + '_neg'] && reach[w.from] && reach[w.to];
-                    }
-                    drawWire(fromT, toT, isActive);
-                }
-            });
-
-            if (dragActive && dragFromId && dragToPos) {
-                var dragFromTerminal = findTerminal(dragFromId);
-                if (dragFromTerminal) {
-                    drawDragWire(dragFromTerminal, dragToPos);
-                }
-            }
-            if (selectedTerminalId && !dragActive) {
-                var selT = findTerminal(selectedTerminalId);
-                if (selT) {
-                    drawDragWire(selT, mousePos);
-                    // Highlight the selected terminal
-                    var pulseSize = Math.min(canvas.width, canvas.height) * 0.035;
-                    var pulse2 = 0.5 + 0.5 * Math.sin(Date.now() * 0.006);
-                    ctx.strokeStyle = 'rgba(255,152,0,' + (0.5 + pulse2 * 0.5) + ')';
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.arc(selT.x, selT.y, pulseSize, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-            }
-
-            // Draw components
-            components.forEach(function(comp) {
-                if (comp.type === COMP.BATTERY) {
-                    drawBattery(comp, size);
-                } else if (comp.type === COMP.BULB) {
-                    drawBulb(comp, size, !!bulbStates[comp.id]);
-                } else if (comp.type === COMP.SWITCH) {
-                    drawSwitch(comp, size);
-                }
-            });
-
-            // Draw terminals
-            terminals.forEach(function(t) {
-                var isHover = hoverTerminal && hoverTerminal.id === t.id;
-                var isActive = !!connectedTerminals[t.id];
-                drawTerminal(t, isHover, isActive);
-            });
-
-            // Draw sparks
-            updateAndDrawSparks();
-
-            animFrame = requestAnimationFrame(render);
+        // ===== UTILITY =====
+        function drawRoundRect(x, y, w, h, r) {
+            if (typeof r === 'number') r = [r, r, r, r];
+            if (!r) r = [0, 0, 0, 0];
+            while (r.length < 4) r.push(0);
+            ctx.moveTo(x + r[0], y);
+            ctx.lineTo(x + w - r[1], y);
+            ctx.arcTo(x + w, y, x + w, y + r[1], r[1]);
+            ctx.lineTo(x + w, y + h - r[2]);
+            ctx.arcTo(x + w, y + h, x + w - r[2], y + h, r[2]);
+            ctx.lineTo(x + r[3], y + h);
+            ctx.arcTo(x, y + h, x, y + h - r[3], r[3]);
+            ctx.lineTo(x, y + r[0]);
+            ctx.arcTo(x, y, x + r[0], y, r[0]);
+            ctx.closePath();
         }
 
-        function recalcTerminals() {
-            terminals = [];
-            var level = levels[currentLevel];
-            level.components.forEach(function(comp) {
-                var ts = getTerminalsForComponent(comp, canvas.width, canvas.height);
-                terminals = terminals.concat(ts);
-            });
+        function distToSegment(p, a, b) {
+            var dx = b.x - a.x;
+            var dy = b.y - a.y;
+            var lenSq = dx * dx + dy * dy;
+            if (lenSq === 0) return Math.sqrt((p.x - a.x) * (p.x - a.x) + (p.y - a.y) * (p.y - a.y));
+            var t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+            var projX = a.x + t * dx;
+            var projY = a.y + t * dy;
+            return Math.sqrt((p.x - projX) * (p.x - projX) + (p.y - projY) * (p.y - projY));
         }
-
-        function findTerminal(id) {
-            for (var i = 0; i < terminals.length; i++) {
-                if (terminals[i].id === id) return terminals[i];
-            }
-            return null;
-        }
-
-        function findTerminalAt(x, y) {
-            var radius = Math.min(canvas.width, canvas.height) * 0.045;
-            var best = null;
-            var bestDist = radius;
-            for (var i = 0; i < terminals.length; i++) {
-                var dx = terminals[i].x - x;
-                var dy = terminals[i].y - y;
-                var dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    best = terminals[i];
-                }
-            }
-            return best;
-        }
-
-        function findComponentAt(x, y) {
-            var size = Math.min(canvas.width, canvas.height) * 0.055;
-            for (var i = 0; i < components.length; i++) {
-                var comp = components[i];
-                var cx = comp.x * canvas.width;
-                var cy = comp.y * canvas.height;
-                var dx = cx - x;
-                var dy = cy - y;
-                if (Math.sqrt(dx * dx + dy * dy) < size * 2) {
-                    return comp;
-                }
-            }
-            return null;
-        }
-
-   
-        // INPUT HANDLING (Click-to-select + drag support)
-        var dragActive = false;
-        var dragFromId = null;
-        var dragToPos = null;
-        var mousePos = { x: 0, y: 0 };
 
         function getPointerPos(e) {
             var rect = canvas.getBoundingClientRect();
@@ -683,376 +623,382 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             var fromTerminal = findTerminal(fromId);
             if (!fromTerminal) return false;
             if (toTerminal.compId === fromTerminal.compId) return false;
-            var exists = wires.some(function(w) {
+
+            var exists = wires.some(function (w) {
                 return (w.from === fromId && w.to === toTerminal.id) ||
                        (w.from === toTerminal.id && w.to === fromId);
             });
             if (exists) return false;
-            // Check wire limit
-            var level = levels[currentLevel];
-            var canAdd = level.maxWires < 0 || wires.length < level.maxWires;
-            if (!canAdd) return false;
 
             wires.push({ from: fromId, to: toTerminal.id });
-            console.log('[CircuitBuilder] Wire added:', fromId, '->', toTerminal.id);
             addSparks(toTerminal.x, toTerminal.y);
             addSparks(fromTerminal.x, fromTerminal.y);
-            updateWireCount();
             return true;
         }
 
-     
-        canvas.addEventListener('mousedown', function(e) {
-            if (e.button !== 0) return; // left click only
-            e.preventDefault();
-            e.stopPropagation();
-            var pos = getPointerPos(e);
-            mousePos = pos;
-            console.log('[CircuitBuilder] mousedown at', pos.x.toFixed(0), pos.y.toFixed(0));
+        // ===== TOOL MANAGEMENT =====
+        var toolButtons = {
+            'battery': document.getElementById('add-battery-button'),
+            'bulb': document.getElementById('add-bulb-button'),
+            'switch': document.getElementById('add-switch-button'),
+            'delete': document.getElementById('delete-button')
+        };
 
-            var t = findTerminalAt(pos.x, pos.y);
-            if (t) {
-                if (selectedTerminalId && selectedTerminalId !== t.id) {
-                    if (tryConnect(selectedTerminalId, t)) {
-                        selectedTerminalId = null;
-                        return;
-                    }
-                }
-                // Start drag and/or select this terminal
-                dragActive = true;
-                dragFromId = t.id;
-                dragToPos = pos;
-                selectedTerminalId = t.id;
-                console.log('[CircuitBuilder] Selected terminal:', t.id);
-                return;
+        function setTool(tool) {
+            if (currentTool === tool && tool !== 'select') {
+                currentTool = 'select';
+            } else {
+                currentTool = tool;
             }
-
             selectedTerminalId = null;
-            dragActive = false;
-            dragFromId = null;
+            updateToolbarHighlight();
+            updateCursor();
+        }
 
-   
-            var comp = findComponentAt(pos.x, pos.y);
-            if (comp && comp.type === COMP.SWITCH) {
-                switchStates[comp.id] = !switchStates[comp.id];
-                console.log('[CircuitBuilder] Toggled switch:', comp.id);
-            }
-        }, true);
-
-        canvas.addEventListener('mousemove', function(e) {
-            var pos = getPointerPos(e);
-            mousePos = pos;
-            hoverTerminal = findTerminalAt(pos.x, pos.y);
-            if (dragActive) {
-                dragToPos = pos;
-            }
-        }, true);
-
-        document.addEventListener('mouseup', function(e) {
-            if (!dragActive || !dragFromId) {
-                dragActive = false;
-                return;
-            }
-            var pos = getPointerPos(e);
-            var t = findTerminalAt(pos.x, pos.y);
-            console.log('[CircuitBuilder] mouseup, target:', t ? t.id : 'none');
-
-            if (t && t.id !== dragFromId) {
-                tryConnect(dragFromId, t);
-                selectedTerminalId = null;
-            }
-
-            dragActive = false;
-            dragFromId = null;
-            dragToPos = null;
-        });
-
-        // Touch support
-        canvas.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            var pos = getPointerPos(e);
-            console.log('[CircuitBuilder] touchstart at', pos.x.toFixed(0), pos.y.toFixed(0));
-
-            var t = findTerminalAt(pos.x, pos.y);
-            if (t) {
-                if (selectedTerminalId && selectedTerminalId !== t.id) {
-                    if (tryConnect(selectedTerminalId, t)) {
-                        selectedTerminalId = null;
-                        return;
-                    }
-                }
-                dragActive = true;
-                dragFromId = t.id;
-                dragToPos = pos;
-                selectedTerminalId = t.id;
-                return;
-            }
-
-            selectedTerminalId = null;
-            dragActive = false;
-
-            var comp = findComponentAt(pos.x, pos.y);
-            if (comp && comp.type === COMP.SWITCH) {
-                switchStates[comp.id] = !switchStates[comp.id];
-            }
-        }, { passive: false, capture: true });
-
-        canvas.addEventListener('touchmove', function(e) {
-            e.preventDefault();
-            var pos = getPointerPos(e);
-            mousePos = pos;
-            hoverTerminal = findTerminalAt(pos.x, pos.y);
-            if (dragActive) {
-                dragToPos = pos;
-            }
-        }, { passive: false, capture: true });
-
-        canvas.addEventListener('touchend', function(e) {
-            e.preventDefault();
-            if (!dragActive || !dragFromId) {
-                dragActive = false;
-                return;
-            }
-            var pos = getPointerPos(e);
-            var t = findTerminalAt(pos.x, pos.y);
-            if (t && t.id !== dragFromId) {
-                tryConnect(dragFromId, t);
-                selectedTerminalId = null;
-            }
-            dragActive = false;
-            dragFromId = null;
-            dragToPos = null;
-        }, { passive: false, capture: true });
-
-        // Right-click to remove wires from a terminal
-        canvas.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            var pos = getPointerPos(e);
-            var t = findTerminalAt(pos.x, pos.y);
-            if (t) {
-                wires = wires.filter(function(w) {
-                    return w.from !== t.id && w.to !== t.id;
-                });
-                updateWireCount();
-                selectedTerminalId = null;
-            }
-        });
-
-        canvas.addEventListener('dblclick', function(e) {
-            e.preventDefault();
-            var pos = getPointerPos(e);
-            var closestIdx = -1;
-            var closestDist = 25;
-            wires.forEach(function(w, idx) {
-                var fromT = findTerminal(w.from);
-                var toT = findTerminal(w.to);
-                if (fromT && toT) {
-                    var d = distToSegment(pos, fromT, toT);
-                    if (d < closestDist) {
-                        closestDist = d;
-                        closestIdx = idx;
+        function updateToolbarHighlight() {
+            Object.keys(toolButtons).forEach(function (key) {
+                if (toolButtons[key]) {
+                    if (key === currentTool) {
+                        toolButtons[key].classList.add('active');
+                    } else {
+                        toolButtons[key].classList.remove('active');
                     }
                 }
             });
-            if (closestIdx >= 0) {
-                wires.splice(closestIdx, 1);
-                updateWireCount();
-            }
-        });
-
-        function distToSegment(p, a, b) {
-            var dx = b.x - a.x;
-            var dy = b.y - a.y;
-            var lenSq = dx * dx + dy * dy;
-            if (lenSq === 0) return Math.sqrt((p.x - a.x) * (p.x - a.x) + (p.y - a.y) * (p.y - a.y));
-            var t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
-            var projX = a.x + t * dx;
-            var projY = a.y + t * dy;
-            return Math.sqrt((p.x - projX) * (p.x - projX) + (p.y - projY) * (p.y - projY));
         }
 
-        // LEVEL MANAGEMENT
-        function loadLevel(idx) {
-            if (idx < 0) idx = 0;
-            if (idx >= levels.length) idx = levels.length - 1;
-            currentLevel = idx;
-            var level = levels[currentLevel];
-            components = level.components.slice();
-            wires = [];
-            switchStates = {};
-            sparkParticles = [];
-            glowingBulbs = [];
-            selectedTerminalId = null;
-            dragActive = false;
-            dragFromId = null;
-            dragToPos = null;
-
-            // Initialize switches to off
-            components.forEach(function(comp) {
-                if (comp.type === COMP.SWITCH) {
-                    switchStates[comp.id] = false;
-                }
-            });
-
-            updateUI();
-        }
-
-        function updateUI() {
-            var level = levels[currentLevel];
-            levelLabel.textContent = 'Level ' + (currentLevel + 1);
-            levelDescription.textContent = level.description;
-            updateWireCount();
-
-            // Enable/disable nav buttons
-            document.getElementById('prev-button').style.opacity = currentLevel > 0 ? '1' : '0.3';
-            document.getElementById('next-button').style.opacity = currentLevel < levels.length - 1 ? '1' : '0.3';
-        }
-
-        function updateWireCount() {
-            var level = levels[currentLevel];
-            if (level.maxWires > 0) {
-                wireCountElem.textContent = 'Wires: ' + wires.length + '/' + level.maxWires;
-                wireCountElem.style.display = '';
+        function updateCursor() {
+            if (currentTool === 'delete') {
+                canvas.style.cursor = 'not-allowed';
+            } else if (currentTool !== 'select') {
+                canvas.style.cursor = 'copy';
             } else {
-                wireCountElem.style.display = 'none';
+                canvas.style.cursor = 'crosshair';
             }
         }
 
-        function checkCircuit() {
-            var adj = buildGraph();
-            var level = levels[currentLevel];
-            var success = level.winCondition(adj);
-
-            if (success) {
-                showMessage(
-                    '🎉',
-                    'Congratulations! The circuit is complete and the bulbs light up!',
-                    currentLevel < levels.length - 1 ? 'Next Level' : 'All Done!',
-                    currentLevel < levels.length - 1 ? 'next' : 'done'
-                );
-            } else {
-                showMessage(
-                    '💡',
-                    'Not all bulbs are lit yet. Keep trying! Make sure the circuit forms a complete loop.',
-                    'Try Again',
-                    'retry'
-                );
-            }
-        }
-
-        function showMessage(icon, text, btnText, action) {
-            messageIcon.textContent = icon;
-            messageText.textContent = text;
-            messageBtn.textContent = btnText;
-            messageBtn.className = '';
-            if (action === 'retry') messageBtn.className = 'try-again';
-            if (action === 'done') messageBtn.className = 'all-done';
-            messageOverlay.classList.remove('hidden');
-
-            messageBtn.onclick = function() {
-                messageOverlay.classList.add('hidden');
-                if (action === 'next') {
-                    loadLevel(currentLevel + 1);
-                } else if (action === 'done') {
-                    loadLevel(0);
-                }
-               
-            };
-        }
-
-        // TOOLBAR BUTTONS
-        document.getElementById('reset-button').addEventListener('click', function() {
-            loadLevel(currentLevel);
+        // ===== TOOLBAR EVENTS =====
+        document.getElementById('add-battery-button').addEventListener('click', function () {
+            setTool('battery');
         });
 
-        document.getElementById('check-button').addEventListener('click', function() {
-            checkCircuit();
+        document.getElementById('add-bulb-button').addEventListener('click', function () {
+            setTool('bulb');
         });
 
-        document.getElementById('prev-button').addEventListener('click', function() {
-            if (currentLevel > 0) {
-                loadLevel(currentLevel - 1);
-            }
+        document.getElementById('add-switch-button').addEventListener('click', function () {
+            setTool('switch');
         });
 
-        document.getElementById('next-button').addEventListener('click', function() {
-            if (currentLevel < levels.length - 1) {
-                loadLevel(currentLevel + 1);
-            }
+        document.getElementById('delete-button').addEventListener('click', function () {
+            setTool('delete');
+        });
+
+        document.getElementById('clear-button').addEventListener('click', function () {
+            clearAll();
         });
 
         // Fullscreen
-        document.getElementById('fullscreen-button').addEventListener('click', function() {
+        document.getElementById('fullscreen-button').addEventListener('click', function () {
             document.getElementById('main-toolbar').style.display = 'none';
             document.getElementById('canvas').style.top = '0px';
             document.getElementById('unfullscreen-button').style.visibility = 'visible';
         });
 
-        document.getElementById('unfullscreen-button').addEventListener('click', function() {
+        document.getElementById('unfullscreen-button').addEventListener('click', function () {
             document.getElementById('main-toolbar').style.display = '';
             document.getElementById('canvas').style.top = '55px';
             document.getElementById('unfullscreen-button').style.visibility = 'hidden';
         });
 
-        // SAVE / RESTORE STATE
-        env.getEnvironment(function(err, environment) {
-            // Restore state if available
+        // ===== INPUT HANDLING =====
+        function handlePointerDown(pos) {
+            // DELETE MODE
+            if (currentTool === 'delete') {
+                var t = findTerminalAt(pos.x, pos.y);
+                if (t) {
+                    wires = wires.filter(function (w) {
+                        return w.from !== t.id && w.to !== t.id;
+                    });
+                    return;
+                }
+                var comp = findComponentAt(pos.x, pos.y);
+                if (comp) {
+                    addSparks(comp.x * canvas.width, comp.y * canvas.height);
+                    removeComponent(comp.id);
+                    return;
+                }
+                removeWireAt(pos.x, pos.y);
+                return;
+            }
+
+            // ADD COMPONENT MODE
+            if (currentTool === 'battery' || currentTool === 'bulb' || currentTool === 'switch') {
+                var fracX = pos.x / canvas.width;
+                var fracY = pos.y / canvas.height;
+                fracX = Math.max(0.08, Math.min(0.92, fracX));
+                fracY = Math.max(0.08, Math.min(0.92, fracY));
+                addComponent(currentTool, fracX, fracY);
+                return;
+            }
+
+            // SELECT MODE - check terminal first for wire drawing
+            var t = findTerminalAt(pos.x, pos.y);
+            if (t) {
+                if (selectedTerminalId && selectedTerminalId !== t.id) {
+                    if (tryConnect(selectedTerminalId, t)) {
+                        selectedTerminalId = null;
+                        return;
+                    }
+                }
+                isDrawingWire = true;
+                wireFromId = t.id;
+                wireToPos = pos;
+                selectedTerminalId = t.id;
+                return;
+            }
+
+            // SELECT MODE - check component for dragging
+            var comp = findComponentAt(pos.x, pos.y);
+            if (comp) {
+                isDraggingComponent = true;
+                dragComp = comp;
+                dragOffset.x = pos.x - comp.x * canvas.width;
+                dragOffset.y = pos.y - comp.y * canvas.height;
+                dragStartPos = { x: pos.x, y: pos.y };
+                dragMoved = false;
+                return;
+            }
+
+            // Clicked empty space - deselect
+            selectedTerminalId = null;
+        }
+
+        function handlePointerMove(pos) {
+            mousePos = pos;
+            hoverTerminal = findTerminalAt(pos.x, pos.y);
+
+            if (isDraggingComponent && dragComp) {
+                var newX = (pos.x - dragOffset.x) / canvas.width;
+                var newY = (pos.y - dragOffset.y) / canvas.height;
+                dragComp.x = Math.max(0.05, Math.min(0.95, newX));
+                dragComp.y = Math.max(0.05, Math.min(0.95, newY));
+                var dist = Math.sqrt(
+                    Math.pow(pos.x - dragStartPos.x, 2) + Math.pow(pos.y - dragStartPos.y, 2)
+                );
+                if (dist > 5) dragMoved = true;
+                recalcTerminals();
+            }
+
+            if (isDrawingWire) {
+                wireToPos = pos;
+            }
+        }
+
+        function handlePointerUp(pos) {
+            // Finish component drag
+            if (isDraggingComponent && dragComp) {
+                if (!dragMoved && dragComp.type === COMP.SWITCH) {
+                    switchStates[dragComp.id] = !switchStates[dragComp.id];
+                }
+                isDraggingComponent = false;
+                dragComp = null;
+                return;
+            }
+
+            // Finish wire drawing
+            if (isDrawingWire && wireFromId) {
+                var t = findTerminalAt(pos.x, pos.y);
+                if (t && t.id !== wireFromId) {
+                    tryConnect(wireFromId, t);
+                    selectedTerminalId = null;
+                }
+                isDrawingWire = false;
+                wireFromId = null;
+                wireToPos = null;
+                return;
+            }
+        }
+
+        // Mouse events
+        canvas.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            handlePointerDown(getPointerPos(e));
+        }, true);
+
+        canvas.addEventListener('mousemove', function (e) {
+            handlePointerMove(getPointerPos(e));
+        }, true);
+
+        document.addEventListener('mouseup', function (e) {
+            handlePointerUp(getPointerPos(e));
+        });
+
+        // Touch events
+        canvas.addEventListener('touchstart', function (e) {
+            e.preventDefault();
+            handlePointerDown(getPointerPos(e));
+        }, { passive: false, capture: true });
+
+        canvas.addEventListener('touchmove', function (e) {
+            e.preventDefault();
+            handlePointerMove(getPointerPos(e));
+        }, { passive: false, capture: true });
+
+        canvas.addEventListener('touchend', function (e) {
+            e.preventDefault();
+            handlePointerUp(getPointerPos(e));
+        }, { passive: false, capture: true });
+
+        // Right-click to remove wires from a terminal
+        canvas.addEventListener('contextmenu', function (e) {
+            e.preventDefault();
+            var pos = getPointerPos(e);
+            var t = findTerminalAt(pos.x, pos.y);
+            if (t) {
+                wires = wires.filter(function (w) {
+                    return w.from !== t.id && w.to !== t.id;
+                });
+                selectedTerminalId = null;
+            }
+        });
+
+        // Double-click to remove a specific wire
+        canvas.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            var pos = getPointerPos(e);
+            removeWireAt(pos.x, pos.y);
+        });
+
+        // ===== RENDER LOOP =====
+        function render() {
+            resizeCanvas();
+            recalcTerminals();
+            drawBackground();
+
+            var size = Math.min(canvas.width, canvas.height) * 0.055;
+            var adj = buildGraph();
+            var bulbStates = getBulbStates(adj);
+
+            // Build connected terminals set
+            var connectedTerminals = {};
+            wires.forEach(function (w) {
+                connectedTerminals[w.from] = true;
+                connectedTerminals[w.to] = true;
+            });
+
+            // Draw wires
+            var batteries = components.filter(function (c) { return c.type === COMP.BATTERY; });
+            wires.forEach(function (w) {
+                var fromT = findTerminal(w.from);
+                var toT = findTerminal(w.to);
+                if (fromT && toT) {
+                    var isActive = false;
+                    for (var b = 0; b < batteries.length; b++) {
+                        var reach = bfsReachable(adj, batteries[b].id + '_pos');
+                        if (reach[batteries[b].id + '_neg'] && reach[w.from] && reach[w.to]) {
+                            isActive = true;
+                            break;
+                        }
+                    }
+                    drawWire(fromT, toT, isActive);
+                }
+            });
+
+            // Draw active wire being drawn
+            if (isDrawingWire && wireFromId && wireToPos) {
+                var fromT = findTerminal(wireFromId);
+                if (fromT) drawDragWire(fromT, wireToPos);
+            }
+            if (selectedTerminalId && !isDrawingWire) {
+                var selT = findTerminal(selectedTerminalId);
+                if (selT) {
+                    drawDragWire(selT, mousePos);
+                    var pulseSize = Math.min(canvas.width, canvas.height) * 0.035;
+                    var pulse2 = 0.5 + 0.5 * Math.sin(Date.now() * 0.006);
+                    ctx.strokeStyle = 'rgba(255,152,0,' + (0.5 + pulse2 * 0.5) + ')';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(selT.x, selT.y, pulseSize, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw components
+            components.forEach(function (comp) {
+                if (comp.type === COMP.BATTERY) drawBattery(comp, size);
+                else if (comp.type === COMP.BULB) drawBulb(comp, size, !!bulbStates[comp.id]);
+                else if (comp.type === COMP.SWITCH) drawSwitch(comp, size);
+            });
+
+            // Draw delete highlights
+            if (currentTool === 'delete') {
+                var hoverComp = findComponentAt(mousePos.x, mousePos.y);
+                if (hoverComp) {
+                    drawDeleteHighlight(hoverComp, size);
+                }
+            }
+
+            // Draw terminals
+            terminals.forEach(function (t) {
+                var isHover = hoverTerminal && hoverTerminal.id === t.id;
+                var isActive = !!connectedTerminals[t.id];
+                drawTerminal(t, isHover, isActive);
+            });
+
+            // Ghost preview for add mode
+            if (currentTool !== 'select' && currentTool !== 'delete' && mousePos.x > 0 && mousePos.y > 0) {
+                drawGhostComponent(currentTool, mousePos.x, mousePos.y, size);
+            }
+
+            // Sparks
+            updateAndDrawSparks();
+
+            // Hint text for empty canvas
+            drawHint();
+
+            animFrame = requestAnimationFrame(render);
+        }
+
+        // ===== SAVE / RESTORE =====
+        env.getEnvironment(function (err, environment) {
             if (environment.objectId) {
-                activity.getDatastoreObject().loadAsText(function(error, metadata, data) {
+                activity.getDatastoreObject().loadAsText(function (error, metadata, data) {
                     if (error == null && data != null) {
                         try {
                             var state = JSON.parse(data);
-                            if (state.currentLevel !== undefined) {
-                                currentLevel = state.currentLevel;
-                                loadLevel(currentLevel);
-                                if (state.wires) wires = state.wires;
-                                if (state.switchStates) switchStates = state.switchStates;
-                                updateWireCount();
-                            }
-                        } catch(e) {
-                            loadLevel(0);
+                            if (state.components) components = state.components;
+                            if (state.wires) wires = state.wires;
+                            if (state.switchStates) switchStates = state.switchStates;
+                            if (state.nextId) nextId = state.nextId;
+                            recalcTerminals();
+                        } catch (e) {
+                            console.log('[CircuitBuilder] Error loading state:', e);
                         }
-                    } else {
-                        loadLevel(0);
                     }
                 });
-            } else {
-                loadLevel(0);
             }
 
-            // Save state on stop
-            document.getElementById('stop-button').addEventListener('click', function(e) {
+            document.getElementById('stop-button').addEventListener('click', function (e) {
                 var state = {
-                    currentLevel: currentLevel,
+                    components: components,
                     wires: wires,
-                    switchStates: switchStates
+                    switchStates: switchStates,
+                    nextId: nextId
                 };
                 var jsonData = JSON.stringify(state);
                 activity.getDatastoreObject().setDataAsText(jsonData);
-                activity.getDatastoreObject().save(function() {
-                    
+                activity.getDatastoreObject().save(function () {
+                    console.log('[CircuitBuilder] State saved');
                 });
             });
         });
 
-        // ROUNDRECT HELPER (avoids polyfill issues)
-        function drawRoundRect(x, y, w, h, r) {
-            if (typeof r === 'number') r = [r, r, r, r];
-            if (!r) r = [0, 0, 0, 0];
-            while (r.length < 4) r.push(0);
-            ctx.moveTo(x + r[0], y);
-            ctx.lineTo(x + w - r[1], y);
-            ctx.arcTo(x + w, y, x + w, y + r[1], r[1]);
-            ctx.lineTo(x + w, y + h - r[2]);
-            ctx.arcTo(x + w, y + h, x + w - r[2], y + h, r[2]);
-            ctx.lineTo(x + r[3], y + h);
-            ctx.arcTo(x, y + h, x, y + h - r[3], r[3]);
-            ctx.lineTo(x, y + r[0]);
-            ctx.arcTo(x, y, x + r[0], y, r[0]);
-            ctx.closePath();
-        }
-
-        loadLevel(0);
+        // ===== INIT =====
+        updateToolbarHighlight();
+        updateCursor();
         render();
 
     });
