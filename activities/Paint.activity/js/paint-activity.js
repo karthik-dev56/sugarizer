@@ -50,11 +50,12 @@ function initGui() {
   PaintApp.prevScreenHeight=parseInt(window.innerHeight) - 55;
 
   const worldCanvas = document.createElement('canvas');
-  worldCanvas.width = parseInt(screen.width);
-  worldCanvas.height = parseInt(screen.height);
+  worldCanvas.width = screen.width
+  worldCanvas.height = screen.height
   PaintApp.data.worldCanvas = worldCanvas;
 
 }
+
 /* The initial drawing is transferred to a world canvas, from which only the visible portion is rendered onto the main canvas. */
 function canvasResize() {
   const canvas=PaintApp.elements.canvas
@@ -67,10 +68,11 @@ function canvasResize() {
   PaintApp.prevScreenWidth = parseInt(window.innerWidth);
   canvas.style.width = newWidth+"px";
   canvas.style.height = newHeight+"px";
-  canvas.getContext('2d').drawImage(worldCanvas,0,0,newWidth,newHeight,0,0,newWidth,newHeight);
+     PaintApp.elements.canvas.width=newWidth;
+   PaintApp.elements.canvas.height=newHeight;
+   PaintApp.elements.canvas.getContext('2d').drawImage(worldCanvas,0,0,newWidth,newHeight,0,0,newWidth,newHeight);
 }
 window.addEventListener("resize", canvasResize);
-
 
 /* Initialization of the presence palette */
 function initPresencePalette() {
