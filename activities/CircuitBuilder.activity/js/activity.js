@@ -698,6 +698,160 @@ define(["sugar-web/activity/activity", "sugar-web/env"], function (activity, env
             clearAll();
         });
 
+        // Preset circuits palette
+        var presetCircuits = {
+            'simple-loop': {
+                label: 'Simple Loop',
+                components: [
+                    { id: 'comp_1', type: 'battery', x: 0.5, y: 0.3 },
+                    { id: 'comp_2', type: 'bulb', x: 0.5, y: 0.65 }
+                ],
+                wires: [
+                    { from: 'comp_1_pos', to: 'comp_2_a' },
+                    { from: 'comp_1_neg', to: 'comp_2_b' }
+                ],
+                switchStates: {},
+                nextId: 3
+            },
+            'switched': {
+                label: 'Switched Circuit',
+                components: [
+                    { id: 'comp_1', type: 'battery', x: 0.3, y: 0.3 },
+                    { id: 'comp_2', type: 'switch', x: 0.7, y: 0.3 },
+                    { id: 'comp_3', type: 'bulb', x: 0.5, y: 0.65 }
+                ],
+                wires: [
+                    { from: 'comp_1_pos', to: 'comp_2_a' },
+                    { from: 'comp_2_b', to: 'comp_3_a' },
+                    { from: 'comp_3_b', to: 'comp_1_neg' }
+                ],
+                switchStates: { 'comp_2': true },
+                nextId: 4
+            },
+            'series': {
+                label: 'Two Bulbs in Series',
+                components: [
+                    { id: 'comp_1', type: 'battery', x: 0.25, y: 0.5 },
+                    { id: 'comp_2', type: 'bulb', x: 0.65, y: 0.3 },
+                    { id: 'comp_3', type: 'bulb', x: 0.65, y: 0.7 }
+                ],
+                wires: [
+                    { from: 'comp_1_pos', to: 'comp_2_a' },
+                    { from: 'comp_2_b', to: 'comp_3_a' },
+                    { from: 'comp_3_b', to: 'comp_1_neg' }
+                ],
+                switchStates: {},
+                nextId: 4
+            },
+            'parallel': {
+                label: 'Two Bulbs in Parallel',
+                components: [
+                    { id: 'comp_1', type: 'battery', x: 0.25, y: 0.5 },
+                    { id: 'comp_2', type: 'bulb', x: 0.65, y: 0.3 },
+                    { id: 'comp_3', type: 'bulb', x: 0.65, y: 0.7 }
+                ],
+                wires: [
+                    { from: 'comp_1_pos', to: 'comp_2_a' },
+                    { from: 'comp_1_pos', to: 'comp_3_a' },
+                    { from: 'comp_2_b', to: 'comp_1_neg' },
+                    { from: 'comp_3_b', to: 'comp_1_neg' }
+                ],
+                switchStates: {},
+                nextId: 4
+            },
+            'switch-parallel': {
+                label: 'Switch-Controlled Parallel',
+                components: [
+                    { id: 'comp_1', type: 'battery', x: 0.15, y: 0.5 },
+                    { id: 'comp_2', type: 'switch', x: 0.45, y: 0.25 },
+                    { id: 'comp_3', type: 'bulb', x: 0.78, y: 0.25 },
+                    { id: 'comp_4', type: 'switch', x: 0.45, y: 0.75 },
+                    { id: 'comp_5', type: 'bulb', x: 0.78, y: 0.75 }
+                ],
+                wires: [
+                    { from: 'comp_1_pos', to: 'comp_2_a' },
+                    { from: 'comp_2_b', to: 'comp_3_a' },
+                    { from: 'comp_3_b', to: 'comp_1_neg' },
+                    { from: 'comp_1_pos', to: 'comp_4_a' },
+                    { from: 'comp_4_b', to: 'comp_5_a' },
+                    { from: 'comp_5_b', to: 'comp_1_neg' }
+                ],
+                switchStates: { 'comp_2': true, 'comp_4': true },
+                nextId: 6
+            },
+            'series-chain': {
+                label: 'Three Bulbs with Switch',
+                components: [
+                    { id: 'comp_1', type: 'battery', x: 0.15, y: 0.5 },
+                    { id: 'comp_2', type: 'switch', x: 0.38, y: 0.25 },
+                    { id: 'comp_3', type: 'bulb', x: 0.62, y: 0.25 },
+                    { id: 'comp_4', type: 'bulb', x: 0.85, y: 0.5 },
+                    { id: 'comp_5', type: 'bulb', x: 0.62, y: 0.75 }
+                ],
+                wires: [
+                    { from: 'comp_1_pos', to: 'comp_2_a' },
+                    { from: 'comp_2_b', to: 'comp_3_a' },
+                    { from: 'comp_3_b', to: 'comp_4_a' },
+                    { from: 'comp_4_b', to: 'comp_5_a' },
+                    { from: 'comp_5_b', to: 'comp_1_neg' }
+                ],
+                switchStates: { 'comp_2': true },
+                nextId: 6
+            }
+        };
+
+        function loadPreset(presetId) {
+            var data = presetCircuits[presetId];
+            if (!data) return;
+            clearAll();
+            components = JSON.parse(JSON.stringify(data.components));
+            wires = JSON.parse(JSON.stringify(data.wires));
+            switchStates = JSON.parse(JSON.stringify(data.switchStates));
+            nextId = data.nextId;
+            recalcTerminals();
+        }
+
+        // Build dropdown menu
+        var presetDropdown = document.createElement('div');
+        presetDropdown.id = 'preset-dropdown';
+        presetDropdown.style.cssText = 'display:none;position:fixed;z-index:99999;background:#333;border:2px solid #555;border-radius:8px;padding:6px 0;min-width:230px;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+        var presetKeys = Object.keys(presetCircuits);
+        for (var p = 0; p < presetKeys.length; p++) {
+            (function (key) {
+                var btn = document.createElement('div');
+                btn.textContent = presetCircuits[key].label;
+                btn.style.cssText = 'color:#fff;padding:10px 18px;cursor:pointer;font-family:Helvetica,Arial,sans-serif;font-size:14px;';
+                btn.onmouseenter = function () { btn.style.background = 'rgba(255,255,255,0.15)'; };
+                btn.onmouseleave = function () { btn.style.background = 'none'; };
+                btn.onclick = function (e) {
+                    e.stopPropagation();
+                    loadPreset(key);
+                    presetDropdown.style.display = 'none';
+                };
+                presetDropdown.appendChild(btn);
+            })(presetKeys[p]);
+        }
+        document.body.appendChild(presetDropdown);
+
+        var presetButton = document.getElementById('preset-circuits-button');
+        if (presetButton) {
+            presetButton.onclick = function (e) {
+                e.stopPropagation();
+                if (presetDropdown.style.display === 'none' || presetDropdown.style.display === '') {
+                    var rect = presetButton.getBoundingClientRect();
+                    presetDropdown.style.left = rect.left + 'px';
+                    presetDropdown.style.top = (rect.bottom + 2) + 'px';
+                    presetDropdown.style.display = 'block';
+                } else {
+                    presetDropdown.style.display = 'none';
+                }
+            };
+        }
+
+        document.addEventListener('click', function () {
+            presetDropdown.style.display = 'none';
+        });
+
         // Fullscreen
         document.getElementById('fullscreen-button').addEventListener('click', function () {
             document.getElementById('main-toolbar').style.display = 'none';

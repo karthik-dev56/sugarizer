@@ -16,5 +16,12 @@
   "TutorialWire": "Fais glisser entre les terminaux (cercles sombres) pour connecter des fils",
   "TutorialMove": "Fais glisser les composants pour réorganiser ton circuit",
   "TutorialSwitch": "Clique sur un interrupteur pour le basculer et contrôler le circuit",
-  "TutorialDelete": "Utilise l'outil supprimer ou clic droit pour retirer des fils"
+  "TutorialDelete": "Utilise l'outil supprimer ou clic droit pour retirer des fils",
+  "PresetCircuits": "Circuits prédéfinis",
+  "SimpleLoop": "Boucle simple",
+  "SwitchedCircuit": "Circuit avec interrupteur",
+  "TwoBulbsSeries": "Deux ampoules en série",
+  "TwoBulbsParallel": "Deux ampoules en parallèle",
+  "SwitchControlledParallel": "Parallèle avec interrupteurs",
+  "ThreeBulbsWithSwitch": "Trois ampoules avec interrupteur"
 }

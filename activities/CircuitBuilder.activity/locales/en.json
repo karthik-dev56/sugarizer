@@ -16,5 +16,12 @@
   "TutorialWire": "Drag between terminals (dark circles) to connect wires",
   "TutorialMove": "Drag components to rearrange your circuit",
   "TutorialSwitch": "Click a switch to toggle it and control the circuit",
-  "TutorialDelete": "Use the delete tool or right-click to remove wires"
+  "TutorialDelete": "Use the delete tool or right-click to remove wires",
+  "PresetCircuits": "Preset Circuits",
+  "SimpleLoop": "Simple Loop",
+  "SwitchedCircuit": "Switched Circuit",
+  "TwoBulbsSeries": "Two Bulbs in Series",
+  "TwoBulbsParallel": "Two Bulbs in Parallel",
+  "SwitchControlledParallel": "Switch-Controlled Parallel",
+  "ThreeBulbsWithSwitch": "Three Bulbs with Switch"
 }

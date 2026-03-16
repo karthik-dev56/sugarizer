@@ -28,6 +28,10 @@
   background-image: url(../icons/reset.svg);
 }
 
+#main-toolbar #preset-circuits-button {
+  background-image: url(../icons/preset-circuits.svg);
+}
+
 #fullscreen-button {
   background-image: url(../icons/view-fullscreen.svg);
 }
@@ -222,4 +226,42 @@ body {
 .palette label {
   color: white;
   font-size: 1.3rem;
+}
+
+/* Preset circuits palette */
+#preset-palette .wrapper {
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.preset-palette {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.preset-button {
+  all: unset;
+  color: white;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.preset-button:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.preset-icon {
+  flex-shrink: 0;
+}
+
+.preset-label {
+  white-space: nowrap;
 }
