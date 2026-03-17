@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Connect the Dots</title>
+  <meta name="viewport"
+    content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, viewport-fit=cover" />
+  <link rel="stylesheet" media="not screen and (device-width: 1200px) and (device-height: 900px)"
+    href="lib/sugar-web/graphics/css/sugar-96dpi.css">
+  <link rel="stylesheet" media="screen and (device-width: 1200px) and (device-height: 900px)"
+    href="lib/sugar-web/graphics/css/sugar-200dpi.css">
+  <link rel="stylesheet" href="css/activity.css">
+  <link rel="stylesheet" href="css/libnotify.css">
+  <script data-main="js/loader" src="lib/require.js"></script>
+  <script type="text/javascript" src="../../cordova.js"></script>
+</head>
+
+<body>
+  <div id="main-toolbar" class="toolbar">
+    <button class="toolbutton" id="activity-button" title="Connect the Dots"></button>
+    <button class="toolbutton" id="network-button" title="Network"></button>
+
+    <!-- Mode toggle -->
+    <div id="mode-buttons" class="toolbar-helper">
+      <button class="mode-button active" id="free-mode-button" title="Free Draw"></button>
+      <button class="mode-button" id="number-mode-button" title="Number Mode"></button>
+      <button class="mode-button" id="game-mode-button" title="Game Mode"></button>
+    </div>
+
+    <!-- Color palette (Free Draw mode) -->
+    <div id="color-palette" class="toolbar-helper">
+      <button class="color-button active" id="color-0" data-color="#FF4444" title="Red"
+        style="background-color: #FF4444;"></button>
+      <button class="color-button" id="color-1" data-color="#FF9800" title="Orange"
+        style="background-color: #FF9800;"></button>
+      <button class="color-button" id="color-2" data-color="#FFEB3B" title="Yellow"
+        style="background-color: #FFEB3B;"></button>
+      <button class="color-button" id="color-3" data-color="#4CAF50" title="Green"
+        style="background-color: #4CAF50;"></button>
+      <button class="color-button" id="color-4" data-color="#2196F3" title="Blue"
+        style="background-color: #2196F3;"></button>
+      <button class="color-button" id="color-5" data-color="#9C27B0" title="Purple"
+        style="background-color: #9C27B0;"></button>
+      <button class="color-button" id="color-6" data-color="#FF69B4" title="Pink"
+        style="background-color: #FF69B4;"></button>
+      <button class="color-button" id="color-7" data-color="#795548" title="Brown"
+        style="background-color: #795548;"></button>
+    </div>
+
+    <!-- Number mode toolbar items -->
+    <button class="toolbutton number-mode-tool" id="templates-button" title="Templates"
+      style="display:none;"></button>
+    <button class="toolbutton number-mode-tool" id="create-template-button" title="Create Template"
+      style="display:none;"></button>
+    <button class="toolbutton number-mode-tool" id="reset-button" title="Reset" style="display:none;"></button>
+
+    <!-- Game mode toolbar items -->
+    <button class="toolbutton game-mode-tool" id="game-start-button" title="Start Game" style="display:none;"></button>
+    <div id="difficulty-buttons" class="toolbar-helper game-mode-tool" style="display:none;">
+      <button class="difficulty-btn" id="diff-easy" title="Easy">Easy</button>
+      <button class="difficulty-btn active" id="diff-medium" title="Medium">Med</button>
+      <button class="difficulty-btn" id="diff-hard" title="Hard">Hard</button>
+    </div>
+
+    <button class="toolbutton" id="undo-button" title="Undo"></button>
+    <button class="toolbutton" id="clear-button" title="Clear"></button>
+
+    <button class="toolbutton pull-right" id="stop-button" title="Stop"></button>
+    <button class="toolbutton pull-right" id="fullscreen-button" title="Fullscreen"></button>
+  </div>
+
+  <div id="canvas-container">
+    <canvas id="dots-canvas"></canvas>
+    <canvas id="number-canvas" style="display:none;"></canvas>
+    <canvas id="game-canvas" style="display:none;"></canvas>
+    <button id="unfullscreen-button" title="Unfullscreen"></button>
+
+    <!-- Template Selector Overlay -->
+    <div id="template-selector" style="display:none;">
+      <div id="template-selector-header">
+        <h2 id="template-selector-title">Choose a Template</h2>
+        <button id="template-selector-close">&times;</button>
+      </div>
+      <div id="template-grid"></div>
+    </div>
+
+    <!-- Template Creation Save Dialog -->
+    <div id="create-save-dialog" style="display:none;">
+      <div id="create-save-content">
+        <h3>Save Your Template</h3>
+        <input type="text" id="template-name-input" placeholder="Template name..." maxlength="20" />
+        <div id="create-save-buttons">
+          <button id="create-save-btn" class="dialog-btn primary">Save</button>
+          <button id="create-cancel-btn" class="dialog-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
