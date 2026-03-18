@@ -93,7 +93,6 @@ define(["sugar-web/activity/activity","tutorial","l10n","sugar-web/env","activit
           return;
         }
         var data = JSON.parse(jsonData);
-        console.log(data,"Hi IM here ")
         PaintApp.data.worldCanvas.width=data.width
         PaintApp.data.worldCanvas.height=data.height
         PaintApp.data.worldCanvas.style.width = data.width+"px";
